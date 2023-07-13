@@ -1,0 +1,56 @@
+version: '3'
+services:
+  nginx-reverse-proxy:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "9080:80"
+      - "9443:443"
+    volumes:
+      - ./data/reverse_proxy:/etc/nginx/conf.d
+      - ./letsencrypt:/etc/letsencrypt
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    depends_on:
+      - app
+
+    networks:
+      app_network:
+        ipv4_address: 172.16.238.10
+
+  app:
+    build: ./
+    restart: always
+    volumes:
+      - ./app:/usr/share/nginx/html/
+
+    networks:
+      app_network:
+        ipv4_address: 172.16.238.11
+
+  letsencrypt-cloudflare:
+    image: certbot/dns-cloudflare
+
+    # Dry Run
+    # command: certonly --non-interactive --dns-cloudflare --dns-cloudflare-credentials /opt/cloudflare/credentials --key-type ecdsa --agree-tos --email >
+
+    # Issue certificate
+    command: certonly --non-interactive --dns-cloudflare --dns-cloudflare-credentials /opt/cloudflare/credentials --key-type ecdsa --agree-tos --email ex>
+
+    # Renew certificate
+    # command: renew --non-interactive --no-self-upgrade --dns-cloudflare --dns-cloudflare-credentials /opt/cloudflare/credentials --key-type ecdsa --agr>
+
+    volumes:
+      - ./cloudflare:/opt/cloudflare
+      - ./letsencrypt:/etc/letsencrypt
+      - ./letsencrypt/log:/var/log/letsencrypt
+
+    networks:
+      app_network:
+        ipv4_address: 172.16.238.12
+
+networks:
+  app_network:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 172.16.238.0/24
